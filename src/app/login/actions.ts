@@ -21,12 +21,12 @@ export async function loginAction(
 ): Promise<LoginState> {
   const password = dashboardPassword();
 
-  // Better to say the server is misconfigured than to pretend the password is
-  // wrong and leave you guessing.
+  // Log only the presence, not the value, for security
   if (!password) {
+    console.error('[login] ADMIN_API_KEY is missing from process.env');
     return {
       error:
-        'ADMIN_API_KEY is not set on this server. Add it to .env.local (or the Vercel project settings) and restart.',
+        'ADMIN_API_KEY is still missing on the server. Please check Vercel Settings > Environment Variables, ensure "Production" is checked, and then REDEPLOY your project.',
     };
   }
 
