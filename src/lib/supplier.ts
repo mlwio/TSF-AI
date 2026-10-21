@@ -12,14 +12,22 @@ import { requireEnv } from '@/lib/env';
 const BUSINESSKORO_BASE_URL = 'https://api.businesskoro.com/api/v1/storefront';
 
 /**
- * ---------------------------------------------------------------------------
- * REPLACE BEFORE GOING LIVE
- * ---------------------------------------------------------------------------
- * The productId of the "5 in 1 Gaming Combo" in your BusinessKoro dashboard.
- * The storefront order endpoint takes one productId per order, so every order
- * placed by the bot uses this single value.
+ * The BusinessKoro key is domain-locked. Without a matching `x-domain` (or
+ * Origin/Referer) header every request — reads and order placement alike — is
+ * rejected with 403 "This key is locked to domain ...". A server-to-server
+ * fetch sends no Origin of its own, so the header has to be set by hand.
+ *
+ * It must match the domain the KEY is registered against, which is not
+ * necessarily the host this app is running on (localhost, a preview URL).
  */
-const BUSINESSKORO_PRODUCT_ID = '5-in-1-gaming-combo-pack';
+const BUSINESSKORO_DOMAIN = 'tsf-oder.mlwio.com';
+
+/**
+ * The productId of the "5 in 1 Gaming Combo Pack" in the BusinessKoro
+ * dashboard, looked up from GET /products. The storefront order endpoint takes
+ * one productId per order, so every order placed by the bot uses this value.
+ */
+const BUSINESSKORO_PRODUCT_ID = 'bbbacf87-a611-4cd6-9679-b27122548df7';
 
 /**
  * The only price band the bot may ever commit to (see STORE_CONTEXT in
@@ -101,6 +109,9 @@ export async function createSupplierOrder(
       'Content-Type': 'application/json',
       // BusinessKoro authenticates with x-api-key, NOT a Bearer token.
       'x-api-key': requireEnv('SUPPLIER_API_KEY'),
+      // Required: the key is domain-locked, and a server-to-server fetch sends
+      // no Origin of its own. Without this every order is rejected with 403.
+      'x-domain': BUSINESSKORO_DOMAIN,
     },
     body: JSON.stringify({
       productId: BUSINESSKORO_PRODUCT_ID,

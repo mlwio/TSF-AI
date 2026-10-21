@@ -30,9 +30,8 @@ yarn-debug.log*
 yarn-error.log*
 .pnpm-debug.log*
 
-# env files (can opt-in for committing if needed)
+# env files (every one of them, no exceptions)
 .env*
-!.env.local.example
 
 # vercel
 .vercel

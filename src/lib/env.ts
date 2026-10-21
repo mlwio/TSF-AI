@@ -11,7 +11,8 @@ export function requireEnv(name: string): string {
   if (!value) {
     throw new Error(
       `Missing required environment variable "${name}". ` +
-        `Copy .env.local.example to .env.local and fill in the real value.`,
+        `Set it in .env.local for local development, and in the host's ` +
+        `environment variables for a deployment.`,
     );
   }
 

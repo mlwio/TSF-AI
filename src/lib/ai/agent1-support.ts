@@ -19,7 +19,13 @@ import type { MessageRow } from '@/types/database';
  * awaited for us — every failure has to be caught and logged in here.
  */
 
-const DEFAULT_MODEL = 'gemini-2.0-flash';
+/**
+ * Google refuses retired models to keys created after the retirement, so this
+ * has to be a model the key is actually served ("2.0-flash" and "2.5-flash" both
+ * answer 404 "no longer available to new users"). Check with:
+ *   curl "https://generativelanguage.googleapis.com/v1beta/models?key=$KEY"
+ */
+const DEFAULT_MODEL = 'gemini-3.5-flash';
 
 /** Messages replayed to the model as conversation context. */
 const HISTORY_LIMIT = 20;
