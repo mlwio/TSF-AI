@@ -17,7 +17,11 @@ export const metadata: Metadata = {
   description: "AI business suite: Messenger and Instagram conversations",
 };
 
-export default function RootLayout({ children }: LayoutProps<"/">) {
+export default function RootLayout({
+  children,
+}: Readonly<{
+  children: React.ReactNode;
+}>) {
   return (
     <html
       lang="en"

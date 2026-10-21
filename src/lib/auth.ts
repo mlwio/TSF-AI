@@ -24,7 +24,9 @@ const SESSION_CONTEXT = 'unified-inbox-dashboard-v1';
  */
 export function dashboardPassword(): string | null {
   const value = process.env.ADMIN_API_KEY || process.env.NEXT_SERVER_ADMIN_API_KEY;
-  return value && value.trim().length > 0 ? value.trim() : null;
+  if (typeof value !== 'string') return null;
+  const trimmed = value.trim();
+  return trimmed.length > 0 ? trimmed : null;
 }
 
 export function sessionTokenFor(password: string): string {
