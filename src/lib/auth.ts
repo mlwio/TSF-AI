@@ -23,8 +23,8 @@ const SESSION_CONTEXT = 'unified-inbox-dashboard-v1';
  * Fails closed: no password configured means no session can ever be valid.
  */
 export function dashboardPassword(): string | null {
-  const value = process.env.ADMIN_API_KEY;
-  return value && value.length > 0 ? value : null;
+  const value = process.env.ADMIN_API_KEY || process.env.NEXT_SERVER_ADMIN_API_KEY;
+  return value && value.trim().length > 0 ? value.trim() : null;
 }
 
 export function sessionTokenFor(password: string): string {
