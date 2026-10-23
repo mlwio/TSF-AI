@@ -1,9 +1,13 @@
 import type { Metadata } from 'next';
+import Image from 'next/image';
 
 import { LoginForm } from './login-form';
 
 export const metadata: Metadata = {
-  title: 'Sign in | Unified Inbox',
+  title: 'Sign in | TSF Admin Panel',
+  icons: {
+    icon: "/logo/logo.jpg",
+  },
 };
 
 /**
@@ -20,11 +24,17 @@ export default function LoginPage() {
 
       <div className="relative w-full max-w-sm">
         <div className="mb-8 text-center">
-          <div className="mx-auto mb-4 flex h-12 w-12 items-center justify-center rounded-xl bg-emerald-600 shadow-lg shadow-emerald-600/20">
-            <span className="text-xl font-bold text-white">TSF</span>
+          <div className="mx-auto mb-4 flex h-16 w-16 items-center justify-center overflow-hidden rounded-xl bg-zinc-900 shadow-lg ring-1 ring-zinc-800">
+            <Image
+              src="/logo/logo.jpg"
+              alt="TSF Logo"
+              width={64}
+              height={64}
+              className="object-cover"
+            />
           </div>
           <h1 className="text-2xl font-bold tracking-tight text-white">
-            TSF Next Gear
+            TSF Admin Panel
           </h1>
           <p className="mt-2 text-sm text-zinc-400">
             Unified AI Business Suite & Inbox

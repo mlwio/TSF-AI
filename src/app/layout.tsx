@@ -13,8 +13,11 @@ const geistMono = Geist_Mono({
 });
 
 export const metadata: Metadata = {
-  title: "Unified Inbox",
+  title: "TSF Admin Panel",
   description: "AI business suite: Messenger and Instagram conversations",
+  icons: {
+    icon: "/logo/logo.jpg",
+  },
 };
 
 export default function RootLayout({
