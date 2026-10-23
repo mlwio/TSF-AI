@@ -67,7 +67,11 @@ export function useDashboardPolling(options: PollingOptions): void {
         if (cancelled) return;
 
         if (result.ok) {
-          latest.current.onSnapshot({ chats: result.chats, thread: result.thread });
+          latest.current.onSnapshot({
+            chats: result.chats,
+            thread: result.thread,
+            events: result.events,
+          });
           latest.current.onStatusChange('live');
         } else {
           latest.current.onStatusChange('error');

@@ -1,4 +1,4 @@
-import type { MessageRow, Platform } from '@/types/database';
+import type { AgentEventRow, MessageRow, Platform } from '@/types/database';
 
 /**
  * A row of the dashboard's left-hand conversation list.
@@ -27,10 +27,15 @@ export interface ChatThread {
  * Everything one poll returns. `thread` is null when the open conversation has
  * not changed since the client's last snapshot, so an idle dashboard never
  * re-sends 200 messages for nothing.
+ *
+ * `events` is always present and deliberately NOT diffed: the agent feed is
+ * small and changes on its own schedule, so cheapness matters more than saving
+ * the payload.
  */
 export interface DashboardSnapshot {
   chats: ChatListItem[];
   thread: ChatThread | null;
+  events: AgentEventRow[];
 }
 
 /**

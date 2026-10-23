@@ -3,11 +3,11 @@
 import { cookies } from 'next/headers';
 
 import { DASHBOARD_SESSION_COOKIE, isValidSessionToken } from '@/lib/auth';
-import { listChats, listMessages } from '@/lib/dashboard/queries';
+import { listAgentEvents, listChats, listMessages } from '@/lib/dashboard/queries';
 import type { ChatListItem, ChatThread } from '@/lib/dashboard/types';
 import { sendMetaMessage } from '@/lib/meta/graph';
 import { getAdminClient } from '@/lib/supabase/admin';
-import type { MessageRow } from '@/types/database';
+import type { AgentEventRow, MessageRow } from '@/types/database';
 
 /**
  * Every dashboard read AND write happens here, on the server, with the
@@ -168,7 +168,12 @@ export async function loadChatMessages(
 }
 
 export type DashboardSnapshotResult =
-  | { ok: true; chats: ChatListItem[]; thread: ChatThread | null }
+  | {
+      ok: true;
+      chats: ChatListItem[];
+      thread: ChatThread | null;
+      events: AgentEventRow[];
+    }
   | { ok: false; error: string };
 
 /**
@@ -190,28 +195,29 @@ export async function loadDashboardSnapshot(input: {
   if (denied) return denied;
 
   try {
-    const chats = await listChats();
+    const [chats, events] = await Promise.all([listChats(), listAgentEvents()]);
 
     const chatId =
       typeof input?.chatId === 'string' && input.chatId ? input.chatId : null;
 
-    if (!chatId) return { ok: true, chats, thread: null };
+    if (!chatId) return { ok: true, chats, events, thread: null };
 
     const chat = chats.find((candidate) => candidate.id === chatId);
 
     // The chat is gone (or was never visible) — nothing to open.
-    if (!chat) return { ok: true, chats, thread: null };
+    if (!chat) return { ok: true, chats, events, thread: null };
 
     const known =
       typeof input?.newestMessageAt === 'string' ? input.newestMessageAt : null;
 
     if ((chat.last_message_at ?? null) === known) {
-      return { ok: true, chats, thread: null };
+      return { ok: true, chats, events, thread: null };
     }
 
     return {
       ok: true,
       chats,
+      events,
       thread: { chatId, messages: await listMessages(chatId) },
     };
   } catch (error) {

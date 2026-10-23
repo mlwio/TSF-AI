@@ -1,6 +1,16 @@
 export type Platform = 'messenger' | 'instagram';
 export type SenderRole = 'user' | 'bot' | 'human_admin';
 export type OrderStatus = 'pending' | 'placed' | 'processing' | 'shipped' | 'delivered' | 'cancelled' | 'failed';
+export type AgentName = 'support_sales' | 'order_manager';
+export type AgentEventType =
+  | 'started'
+  | 'thinking'
+  | 'sent'
+  | 'order_placed'
+  | 'order_failed'
+  | 'skipped'
+  | 'alert'
+  | 'error';
 
 /**
  * Every column name and type below is unchanged from the original spec.
@@ -68,6 +78,20 @@ export type Database = {
         Update: Partial<Database['public']['Tables']['orders']['Insert']>;
         Relationships: [];
       };
+      agent_events: {
+        Row: {
+          id: string;
+          chat_id: string | null;
+          agent: AgentName;
+          event_type: AgentEventType;
+          title: string;
+          detail: string | null;
+          created_at: string;
+        };
+        Insert: Omit<Database['public']['Tables']['agent_events']['Row'], 'id' | 'created_at'>;
+        Update: Partial<Database['public']['Tables']['agent_events']['Insert']>;
+        Relationships: [];
+      };
     };
     Views: { [_ in never]: never };
     Functions: { [_ in never]: never };
@@ -80,3 +104,4 @@ export type Database = {
 export type ChatRow = Database['public']['Tables']['chats']['Row'];
 export type MessageRow = Database['public']['Tables']['messages']['Row'];
 export type OrderRow = Database['public']['Tables']['orders']['Row'];
+export type AgentEventRow = Database['public']['Tables']['agent_events']['Row'];

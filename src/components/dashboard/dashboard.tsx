@@ -4,11 +4,12 @@ import { useEffect, useState } from 'react';
 
 import { loadChatMessages, sendAdminReply, setBotActive } from '@/app/actions';
 import { logoutAction } from '@/app/login/actions';
+import { AgentActivityPanel } from '@/components/dashboard/agent-activity-panel';
 import { ChatList } from '@/components/dashboard/chat-list';
 import { ChatThread } from '@/components/dashboard/chat-thread';
 import { useDashboardPolling } from '@/hooks/use-dashboard-polling';
 import { sortChats, type ChatListItem, type LiveStatus } from '@/lib/dashboard/types';
-import type { MessageRow } from '@/types/database';
+import type { AgentEventRow, MessageRow } from '@/types/database';
 
 /**
  * The thread is stored together with the chat it belongs to, so "which
@@ -32,8 +33,15 @@ interface LoadedThread {
  * service_role key on the server and ships nothing but rows the signed-in
  * operator is allowed to see.
  */
-export function Dashboard({ initialChats }: { initialChats: ChatListItem[] }) {
+export function Dashboard({
+  initialChats,
+  initialEvents,
+}: {
+  initialChats: ChatListItem[];
+  initialEvents: AgentEventRow[];
+}) {
   const [chats, setChats] = useState(initialChats);
+  const [events, setEvents] = useState(initialEvents);
   const [activeChatId, setActiveChatId] = useState<string | null>(
     initialChats[0]?.id ?? null,
   );
@@ -79,6 +87,7 @@ export function Dashboard({ initialChats }: { initialChats: ChatListItem[] }) {
       // The server sends the list already sorted by recency, so it replaces the
       // local one outright — there is no partial payload to merge any more.
       setChats(snapshot.chats);
+      setEvents(snapshot.events);
 
       // A snapshot can land after you have switched conversation; never paint
       // one chat's history into another chat's window.
@@ -179,7 +188,7 @@ export function Dashboard({ initialChats }: { initialChats: ChatListItem[] }) {
     <div className="flex h-dvh flex-col">
       <header className="flex items-center justify-between gap-4 border-b border-zinc-200 bg-white px-5 py-3 dark:border-zinc-800 dark:bg-zinc-900">
         <h1 className="text-sm font-semibold text-zinc-900 dark:text-zinc-100">
-          Unified Inbox
+          TSF Admin Panel
         </h1>
 
         <div className="flex items-center gap-4">
@@ -246,8 +255,8 @@ export function Dashboard({ initialChats }: { initialChats: ChatListItem[] }) {
         </div>
       ) : null}
 
-      <div className="flex min-h-0 flex-1 flex-col md:flex-row">
-        <aside className="flex max-h-[40vh] shrink-0 flex-col overflow-hidden border-b border-zinc-200 bg-white md:max-h-none md:w-80 md:border-b-0 md:border-r dark:border-zinc-800 dark:bg-zinc-900">
+      <div className="flex min-h-0 flex-1 flex-col lg:flex-row">
+        <aside className="flex max-h-[40vh] shrink-0 flex-col overflow-hidden border-b border-zinc-200 bg-white lg:max-h-none lg:w-72 lg:border-b-0 lg:border-r xl:w-80 dark:border-zinc-800 dark:bg-zinc-900">
           <ChatList
             chats={chats}
             activeChatId={activeChatId}
@@ -272,6 +281,12 @@ export function Dashboard({ initialChats }: { initialChats: ChatListItem[] }) {
             </p>
           </section>
         )}
+
+        <AgentActivityPanel
+          events={events}
+          chats={chats}
+          activeChatId={activeChatId}
+        />
       </div>
     </div>
   );

@@ -1,3 +1,4 @@
+import { recordAgentEvent } from '@/lib/ai/agent-events';
 import { SupplierApiError, createSupplierOrder } from '@/lib/supplier';
 import { getAdminClient } from '@/lib/supabase/admin';
 import { sendTelegramMessage } from '@/lib/telegram';
@@ -80,6 +81,14 @@ export async function placeOrder(
 
   const duplicate = await findRecentLiveOrder(input.chatId);
   if (duplicate) {
+    await recordAgentEvent({
+      agent: 'order_manager',
+      eventType: 'skipped',
+      title: 'একই কাস্টমারের অর্ডার কিছুক্ষণ আগেই হয়ে গেছে, নতুন অর্ডার হয়নি',
+      detail: `Order ${duplicate.id}`,
+      chatId: input.chatId,
+    });
+
     return {
       ok: true,
       orderId: duplicate.id,
@@ -91,6 +100,14 @@ export async function placeOrder(
         'Confirm the existing order with the customer; do not call this tool again.',
     };
   }
+
+  await recordAgentEvent({
+    agent: 'order_manager',
+    eventType: 'thinking',
+    title: 'নতুন অর্ডার নেওয়া হচ্ছে',
+    detail: `${input.customerName} · ${currency} ${totalAmount}`,
+    chatId: input.chatId,
+  });
 
   // 1. Record the attempt BEFORE touching the supplier, so a crash mid-call
   //    still leaves a row to investigate instead of a silent charge.
@@ -173,6 +190,16 @@ export async function placeOrder(
       notes: input.notes,
     }),
   );
+
+  await recordAgentEvent({
+    agent: 'order_manager',
+    eventType: 'order_placed',
+    title: 'BusinessKoro-তে অর্ডার প্লেস হয়েছে',
+    detail: `${input.customerName} · ${input.customerPhone} · ${
+      supplierOrderId ? `BusinessKoro ID ${supplierOrderId}` : 'supplier ID নেই'
+    } · ${currency} ${totalAmount}`,
+    chatId: input.chatId,
+  });
 
   return {
     ok: true,
@@ -285,6 +312,14 @@ async function failOrder(params: {
       `Order ref: ${orderId}`,
     ].join('\n'),
   );
+
+  await recordAgentEvent({
+    agent: 'order_manager',
+    eventType: 'order_failed',
+    title: 'সাপ্লায়ার অর্ডারটি নেয়নি',
+    detail: `${reason} · ${input.customerName} · Order ${orderId}`,
+    chatId: input.chatId,
+  });
 
   return {
     ok: false,

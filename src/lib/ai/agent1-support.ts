@@ -2,6 +2,7 @@ import { google } from '@ai-sdk/google';
 import { generateText, isStepCount, type ModelMessage } from 'ai';
 
 import { createPlaceOrderTool } from '@/lib/ai/tools';
+import { recordAgentEvent, truncateDetail } from '@/lib/ai/agent-events';
 import { sendMetaMessage } from '@/lib/meta/graph';
 import { getAdminClient } from '@/lib/supabase/admin';
 import { sendTelegramMessage } from '@/lib/telegram';
@@ -113,6 +114,14 @@ export async function runSupportAgent(params: { chatId: string }): Promise<void>
       chatId: params.chatId,
       error,
     });
+
+    await recordAgentEvent({
+      agent: 'support_sales',
+      eventType: 'error',
+      title: 'Agent 1 কাজ শেষ করতে পারেনি',
+      detail: error instanceof Error ? error.message : String(error),
+      chatId: params.chatId,
+    });
   }
 }
 
@@ -131,7 +140,15 @@ async function replyToLatestMessage(chatId: string): Promise<void> {
 
   // The webhook already checked this, but after() runs later — the admin may
   // have taken over in the meantime. Never talk over a human.
-  if (!chat.bot_active) return;
+  if (!chat.bot_active) {
+    await recordAgentEvent({
+      agent: 'support_sales',
+      eventType: 'skipped',
+      title: 'AI pause ছিল, তাই কোনো উত্তর পাঠানো হয়নি',
+      chatId,
+    });
+    return;
+  }
 
   const { data: history, error: historyError } = await supabase
     .from('messages')
@@ -146,6 +163,24 @@ async function replyToLatestMessage(chatId: string): Promise<void> {
   // flipped back into chronological order for the model.
   const messages = toModelMessages((history ?? []).slice().reverse());
   if (messages.length === 0) return;
+
+  // `history` is newest-first, so the first inbound row is what triggered this.
+  const latestInbound = (history ?? []).find((row) => row.sender_role === 'user');
+
+  await recordAgentEvent({
+    agent: 'support_sales',
+    eventType: 'started',
+    title: 'নতুন কাস্টমার মেসেজ পেয়ে কাজ শুরু করেছে',
+    detail: latestInbound ? truncateDetail(latestInbound.content, 160) : null,
+    chatId,
+  });
+
+  await recordAgentEvent({
+    agent: 'support_sales',
+    eventType: 'thinking',
+    title: 'কী উত্তর দেবে ভাবছে',
+    chatId,
+  });
 
   const { text } = await generateText({
     model: google(process.env.GEMINI_MODEL || DEFAULT_MODEL),
@@ -162,6 +197,13 @@ async function replyToLatestMessage(chatId: string): Promise<void> {
     // The model answered with a tool call and no prose, or was cut off.
     // Meta rejects empty message text, so there is nothing safe to send.
     console.warn('[agent1] model produced no text, nothing sent', { chatId });
+
+    await recordAgentEvent({
+      agent: 'support_sales',
+      eventType: 'skipped',
+      title: 'কোনো টেক্সট তৈরি হয়নি, কিছু পাঠানো হয়নি',
+      chatId,
+    });
     return;
   }
 
@@ -175,6 +217,14 @@ async function replyToLatestMessage(chatId: string): Promise<void> {
 
   if (!current?.bot_active) {
     console.info('[agent1] AI paused mid-generation, reply dropped', { chatId });
+
+    await recordAgentEvent({
+      agent: 'support_sales',
+      eventType: 'skipped',
+      title: 'AI pause করা হয়েছিল, তৈরি করা উত্তর বাতিল হয়েছে',
+      detail: truncateDetail(reply, 160),
+      chatId,
+    });
     return;
   }
 
@@ -198,10 +248,26 @@ async function replyToLatestMessage(chatId: string): Promise<void> {
       error,
     });
 
+    await recordAgentEvent({
+      agent: 'support_sales',
+      eventType: 'alert',
+      title: 'কাস্টমারের কাছে উত্তর পৌঁছায়নি',
+      detail: error instanceof Error ? error.message : String(error),
+      chatId,
+    });
+
     await alertAdminOfFailedReply(chatId);
 
     return;
   }
+
+  await recordAgentEvent({
+    agent: 'support_sales',
+    eventType: 'sent',
+    title: 'কাস্টমারকে উত্তর পাঠানো হয়েছে',
+    detail: truncateDetail(reply),
+    chatId,
+  });
 
   // Deliberately after sending: the customer must never receive a reply that
   // isn't in the dashboard. If this insert fails we log it rather than retry,

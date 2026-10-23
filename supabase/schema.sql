@@ -37,6 +37,31 @@ CREATE TABLE public.orders (
   updated_at timestamptz NOT NULL DEFAULT now()
 );
 
+-- Agent telemetry: one row per step an agent takes, so the dashboard can show
+-- what Agent 1 (support/sales) and Agent 2 (order manager) are doing live.
+-- Telemetry, not customer-facing messages - see supabase/migrations/
+-- 20261022000000_agent_events.sql for the full rationale.
+CREATE TABLE public.agent_events (
+  id uuid DEFAULT gen_random_uuid() PRIMARY KEY,
+  chat_id uuid REFERENCES public.chats(id) ON DELETE CASCADE,
+  agent text NOT NULL CHECK (agent IN ('support_sales', 'order_manager')),
+  event_type text NOT NULL CHECK (
+    event_type IN (
+      'started',
+      'thinking',
+      'sent',
+      'order_placed',
+      'order_failed',
+      'skipped',
+      'alert',
+      'error'
+    )
+  ),
+  title text NOT NULL,
+  detail text,
+  created_at timestamptz NOT NULL DEFAULT now()
+);
+
 -- The tables used to be added to the `supabase_realtime` publication so the
 -- dashboard could subscribe with the anon key. Realtime is gone: the dashboard
 -- now polls a Server Action that reads with the service_role key, and the RLS
@@ -66,6 +91,7 @@ CREATE TRIGGER update_orders_modtime BEFORE UPDATE ON public.orders FOR EACH ROW
 ALTER TABLE public.chats ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.messages ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.orders ENABLE ROW LEVEL SECURITY;
+ALTER TABLE public.agent_events ENABLE ROW LEVEL SECURITY;
 
 -- `FOR ALL` covers SELECT, INSERT, UPDATE and DELETE in one policy:
 -- USING (false) matches no existing row, WITH CHECK (false) accepts no new one.
@@ -82,6 +108,10 @@ CREATE POLICY messages_deny_all_anon ON public.messages
 
 DROP POLICY IF EXISTS orders_deny_all_anon ON public.orders;
 CREATE POLICY orders_deny_all_anon ON public.orders
+  FOR ALL TO anon USING (false) WITH CHECK (false);
+
+DROP POLICY IF EXISTS agent_events_deny_all_anon ON public.agent_events;
+CREATE POLICY agent_events_deny_all_anon ON public.agent_events
   FOR ALL TO anon USING (false) WITH CHECK (false);
 
 -- =============================================================================
@@ -102,3 +132,8 @@ CREATE INDEX IF NOT EXISTS orders_chat_id_idx
 -- to updated_at when a chat has no messages yet.
 CREATE INDEX IF NOT EXISTS chats_updated_at_idx
   ON public.chats (updated_at);
+
+-- agent_events(created_at DESC): the activity feed is always "newest N events",
+-- so this lets that read walk the index instead of sorting the table.
+CREATE INDEX IF NOT EXISTS agent_events_created_at_idx
+  ON public.agent_events (created_at DESC);
