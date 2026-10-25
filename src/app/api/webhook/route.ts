@@ -68,17 +68,7 @@ export async function GET(request: Request) {
  * before any JSON parsing.
  */
 export async function POST(request: Request) {
-  console.log('[webhook] received POST request');
   const rawBody = await request.text();
-  
-  // Temporary: log every webhook hit to agent_events for debugging
-   await getAdminClient().from('agent_events').insert({
-     agent: 'support_sales',
-     event_type: 'started',
-     title: 'Webhook hit received',
-     detail: `Method: POST, Length: ${rawBody.length}`,
-     chat_id: null,
-   });
 
   const signatureValid = verifyMetaSignature({
     rawBody,
