@@ -21,12 +21,22 @@ import type { MessageRow } from '@/types/database';
  */
 
 /**
- * Google refuses retired models to keys created after the retirement, so this
- * has to be a model the key is actually served ("2.0-flash" and "2.5-flash" both
- * answer 404 "no longer available to new users"). Check with:
+ * The model Agent 1 replies with.
+ *
+ * Deliberately not read from an env var. GEMINI_MODEL used to override this, a
+ * stale value in it pointed at a model Google had retired, and every single
+ * reply failed with a 404 — while the dashboard showed a perfectly healthy
+ * inbox, because a reply that failed to generate and a customer nobody answered
+ * look identical from the outside. One source of truth cannot drift like that.
+ *
+ * Google retires flash models for new keys ("1.5-flash" and "2.5-flash" now
+ * both answer 404 "no longer available to new users"), so this needs revisiting
+ * occasionally. List what the key is actually served:
  *   curl "https://generativelanguage.googleapis.com/v1beta/models?key=$KEY"
+ * Then confirm the SDK can still drive tool calls with it — a model can answer
+ * over plain REST and still hang once `tools` are attached.
  */
-const DEFAULT_MODEL = 'gemini-3.5-flash';
+const MODEL = 'gemini-3.5-flash';
 
 /** Messages replayed to the model as conversation context. */
 const HISTORY_LIMIT = 20;
@@ -110,6 +120,8 @@ export async function runSupportAgent(params: { chatId: string }): Promise<void>
     await replyToLatestMessage(params.chatId);
   } catch (error) {
     // Runs in after(); an unhandled rejection here would be invisible.
+    const reason = error instanceof Error ? error.message : String(error);
+
     console.error('[agent1] support agent failed', {
       chatId: params.chatId,
       error,
@@ -119,9 +131,17 @@ export async function runSupportAgent(params: { chatId: string }): Promise<void>
       agent: 'support_sales',
       eventType: 'error',
       title: 'Agent 1 কাজ শেষ করতে পারেনি',
-      detail: error instanceof Error ? error.message : String(error),
+      detail: reason,
       chatId: params.chatId,
     });
+
+    // A broken model (a retired name, an exhausted quota, a bad key) stops
+    // every reply at once, and the customer just sees silence — the owner has
+    // to hear about it from somewhere other than the customers themselves.
+    await alertAdminOfFailedReply(
+      params.chatId,
+      `the reply could not be generated — ${reason}`,
+    );
   }
 }
 
@@ -183,7 +203,7 @@ async function replyToLatestMessage(chatId: string): Promise<void> {
   });
 
   const { text } = await generateText({
-    model: google(process.env.GEMINI_MODEL || DEFAULT_MODEL),
+    model: google(MODEL),
     instructions: SUPPORT_AGENT_INSTRUCTIONS,
     messages,
     tools: { place_order: createPlaceOrderTool(chatId, chat.platform) },
@@ -256,7 +276,10 @@ async function replyToLatestMessage(chatId: string): Promise<void> {
       chatId,
     });
 
-    await alertAdminOfFailedReply(chatId);
+    await alertAdminOfFailedReply(
+      chatId,
+      `Meta rejected the reply — ${error instanceof Error ? error.message : String(error)}`,
+    );
 
     return;
   }
@@ -288,14 +311,19 @@ async function replyToLatestMessage(chatId: string): Promise<void> {
 }
 
 /**
- * Tells the owner that a customer is sitting there unanswered.
+ * Tells the owner that a customer is sitting there unanswered, and why.
  *
- * Best-effort on purpose: if Telegram is down too, the original delivery error
- * — already logged — must not be swallowed by a second one.
+ * Best-effort on purpose: if Telegram is down too, the original failure —
+ * already logged — must not be swallowed by a second one.
  */
-async function alertAdminOfFailedReply(chatId: string): Promise<void> {
+async function alertAdminOfFailedReply(
+  chatId: string,
+  reason: string,
+): Promise<void> {
   try {
-    await sendTelegramMessage(`AI failed to reply to Chat ID: ${chatId}`);
+    await sendTelegramMessage(
+      `AI failed to reply to Chat ID: ${chatId}\nReason: ${reason}`,
+    );
   } catch (error) {
     console.error('[agent1] Telegram alert about the failed reply did not send', {
       chatId,
