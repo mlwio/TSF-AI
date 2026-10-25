@@ -1,8 +1,17 @@
 -- =============================================================================
 -- Unified AI Business Suite - Supabase schema
 -- =============================================================================
+--
+-- Safe to run more than once. Every statement is guarded (IF NOT EXISTS /
+-- DROP ... IF EXISTS first), which matters because this file is applied by hand
+-- in the Supabase SQL Editor: the editor stops at the first error, so a plain
+-- `CREATE TABLE public.chats` made every run after the first abort at line one
+-- and leave `messages` and `orders` missing. The bot then had nowhere to save
+-- an inbound message, so it never saved one and never replied to anything.
+--
+-- Run this whole file, top to bottom, in one paste.
 
-CREATE TABLE public.chats (
+CREATE TABLE IF NOT EXISTS public.chats (
   id uuid DEFAULT gen_random_uuid() PRIMARY KEY,
   platform text NOT NULL CHECK (platform IN ('messenger', 'instagram')),
   customer_id text NOT NULL,
@@ -13,7 +22,7 @@ CREATE TABLE public.chats (
   UNIQUE (platform, customer_id)
 );
 
-CREATE TABLE public.messages (
+CREATE TABLE IF NOT EXISTS public.messages (
   id uuid DEFAULT gen_random_uuid() PRIMARY KEY,
   chat_id uuid NOT NULL REFERENCES public.chats(id) ON DELETE CASCADE,
   sender_role text NOT NULL CHECK (sender_role IN ('user', 'bot', 'human_admin')),
@@ -22,7 +31,7 @@ CREATE TABLE public.messages (
   created_at timestamptz NOT NULL DEFAULT now()
 );
 
-CREATE TABLE public.orders (
+CREATE TABLE IF NOT EXISTS public.orders (
   id uuid DEFAULT gen_random_uuid() PRIMARY KEY,
   chat_id uuid NOT NULL REFERENCES public.chats(id) ON DELETE CASCADE,
   product_details jsonb NOT NULL,
@@ -41,7 +50,7 @@ CREATE TABLE public.orders (
 -- what Agent 1 (support/sales) and Agent 2 (order manager) are doing live.
 -- Telemetry, not customer-facing messages - see supabase/migrations/
 -- 20261022000000_agent_events.sql for the full rationale.
-CREATE TABLE public.agent_events (
+CREATE TABLE IF NOT EXISTS public.agent_events (
   id uuid DEFAULT gen_random_uuid() PRIMARY KEY,
   chat_id uuid REFERENCES public.chats(id) ON DELETE CASCADE,
   agent text NOT NULL CHECK (agent IN ('support_sales', 'order_manager')),
@@ -72,7 +81,13 @@ CREATE TABLE public.agent_events (
 CREATE OR REPLACE FUNCTION update_modified_column()
 RETURNS TRIGGER AS $$ BEGIN NEW.updated_at = now(); RETURN NEW; END; $$ language 'plpgsql';
 
+-- Postgres refuses to create a trigger that already exists, and an unguarded
+-- CREATE TRIGGER would abort the file on every run after the first - the exact
+-- failure mode that left `messages` and `orders` missing. Drop first.
+DROP TRIGGER IF EXISTS update_chats_modtime ON public.chats;
 CREATE TRIGGER update_chats_modtime BEFORE UPDATE ON public.chats FOR EACH ROW EXECUTE FUNCTION update_modified_column();
+
+DROP TRIGGER IF EXISTS update_orders_modtime ON public.orders;
 CREATE TRIGGER update_orders_modtime BEFORE UPDATE ON public.orders FOR EACH ROW EXECUTE FUNCTION update_modified_column();
 
 -- =============================================================================
