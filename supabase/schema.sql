@@ -3,11 +3,15 @@
 -- =============================================================================
 --
 -- Safe to run more than once. Every statement is guarded (IF NOT EXISTS /
--- DROP ... IF EXISTS first), which matters because this file is applied by hand
--- in the Supabase SQL Editor: the editor stops at the first error, so a plain
--- `CREATE TABLE public.chats` made every run after the first abort at line one
--- and leave `messages` and `orders` missing. The bot then had nowhere to save
--- an inbound message, so it never saved one and never replied to anything.
+-- DROP ... IF EXISTS first), because this file is applied by hand in the
+-- Supabase SQL Editor and the editor stops at the first error.
+--
+-- That guarding is not cosmetic. This project's database was not built by this
+-- file - `chats` already existed with a different shape (see the repair block
+-- below), and `messages`, `orders` and `agent_events` did not exist at all. The
+-- bot never replied to a single message because of it: the webhook threw on its
+-- very first write, so no conversation was ever stored and the AI agent was
+-- never triggered.
 --
 -- Run this whole file, top to bottom, in one paste.
 
@@ -21,6 +25,24 @@ CREATE TABLE IF NOT EXISTS public.chats (
   updated_at timestamptz NOT NULL DEFAULT now(),
   UNIQUE (platform, customer_id)
 );
+
+-- Repair: this project already had a `chats` table that was NOT created by this
+-- file. An earlier version of the app left behind a completely different shape
+-- (user_id / title / model / system_instruction / messages jsonb) with, crucially,
+-- no UNIQUE (platform, customer_id). `CREATE TABLE IF NOT EXISTS` therefore
+-- skipped it silently, and the webhook's very first write -
+-- upsert(..., { onConflict: 'platform,customer_id' }) - failed with
+-- 42P10 "there is no unique or exclusion constraint matching the ON CONFLICT
+-- specification" on every single inbound message. It threw before inserting the
+-- message, so no chat row was ever created, no message was ever saved, the AI
+-- agent was never triggered, and nothing was ever replied to.
+--
+-- The columns this schema uses all exist on that older table, so adding the
+-- missing constraint is enough to make it work; the leftover columns are inert.
+-- Idempotent: DROP IF EXISTS first so a re-run is a no-op rather than
+-- "constraint already exists".
+ALTER TABLE public.chats DROP CONSTRAINT IF EXISTS chats_platform_customer_id_key;
+ALTER TABLE public.chats ADD CONSTRAINT chats_platform_customer_id_key UNIQUE (platform, customer_id);
 
 CREATE TABLE IF NOT EXISTS public.messages (
   id uuid DEFAULT gen_random_uuid() PRIMARY KEY,
