@@ -69,6 +69,7 @@ export async function GET(request: Request) {
  */
 export async function POST(request: Request) {
   const rawBody = await request.text();
+  console.log('[webhook] received POST, body length:', rawBody.length);
 
   const signatureValid = verifyMetaSignature({
     rawBody,
@@ -77,9 +78,24 @@ export async function POST(request: Request) {
   });
 
   if (!signatureValid) {
-    // 401 (not 200) is deliberate: an unsigned request is not from Meta.
+    console.error('[webhook] invalid signature');
+    await getAdminClient().from('agent_events').insert({
+      agent: 'support_sales',
+      event_type: 'error',
+      title: 'Webhook signature invalid',
+      detail: `Header: ${request.headers.get('x-hub-signature-256')}`,
+      chat_id: null,
+    });
     return new Response('Invalid signature', { status: 401 });
   }
+
+  await getAdminClient().from('agent_events').insert({
+    agent: 'support_sales',
+    event_type: 'started',
+    title: 'Webhook hit valid',
+    detail: `Body: ${rawBody.slice(0, 200)}`,
+    chat_id: null,
+  });
 
   let payload: MetaWebhookPayload;
   try {
