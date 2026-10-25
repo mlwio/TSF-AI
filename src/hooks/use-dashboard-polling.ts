@@ -11,7 +11,7 @@ import type { DashboardSnapshot, LiveStatus } from '@/lib/dashboard/types';
  * Fast enough to feel instant for a chat operator, and the payload is small:
  * one conversation list plus, only when it actually changed, the open thread.
  */
-export const DASHBOARD_POLL_INTERVAL_MS = 3_000;
+export const DASHBOARD_POLL_INTERVAL_MS = 2000;
 
 interface PollingOptions {
   /** The conversation currently on screen, or null when none is selected. */

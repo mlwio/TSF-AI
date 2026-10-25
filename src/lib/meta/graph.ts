@@ -53,7 +53,7 @@ export async function sendMetaMessage(params: {
       body: JSON.stringify({
         recipient: { id: recipientId },
         messaging_type: 'RESPONSE',
-        text,
+        message: { text },
       }),
       // Never let Next.js cache a POST.
       cache: 'no-store',
