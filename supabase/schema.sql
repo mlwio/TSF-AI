@@ -103,9 +103,8 @@ CREATE TABLE IF NOT EXISTS public.agent_events (
 CREATE OR REPLACE FUNCTION update_modified_column()
 RETURNS TRIGGER AS $$ BEGIN NEW.updated_at = now(); RETURN NEW; END; $$ language 'plpgsql';
 
--- Postgres refuses to create a trigger that already exists, and an unguarded
--- CREATE TRIGGER would abort the file on every run after the first - the exact
--- failure mode that left `messages` and `orders` missing. Drop first.
+-- Postgres refuses to create a trigger that already exists, and a second run
+-- would abort here without the DROP. Drop first.
 DROP TRIGGER IF EXISTS update_chats_modtime ON public.chats;
 CREATE TRIGGER update_chats_modtime BEFORE UPDATE ON public.chats FOR EACH ROW EXECUTE FUNCTION update_modified_column();
 
